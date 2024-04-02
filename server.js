@@ -7,7 +7,6 @@ const app = express();
 const { helpcenterinfo } = require('./Helpcenterinfo');
 const {All_info}=require('./All_info')
 const path = require('path');
-
 app.use(cors()); // Enable CORS for all routes
 app.use(express.json());
 app.use(express.urlencoded({extended: false}));
@@ -157,14 +156,31 @@ app.post("/login", async(req,res)=>{
         const isPasswordMatch = await bcrypt.compare(password, user.password);
 
         if(isPasswordMatch){
-            res.status(200).redirect('/');
+            res.status(200).send('success');
+            console.log("success")
         }
         else{
             res.status(401).send("Wrong password");
+            console.log("wrong")
         }
     } catch(error) {
         console.error("Error logging in:", error);
         res.status(500).send("Internal server error. Please try again later.");
+        console.log("wrong")
+    }
+});
+app.get("/login/:name", async(req,res)=>{
+    const { name } = req.params;
+    try {
+        const searchpro = await collection.find({ name: name });
+        if (searchpro.length > 0) {
+            res.status(200).json(searchpro);
+        } else {
+            res.status(404).json({ message: 'No items found in the cart for this user' });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Internal server error' });
     }
 });
 
@@ -175,26 +191,28 @@ app.post("/signup", async (req, res) => {
         mno: req.body.mno,
         password: req.body.password
     }
+    const otp=req.body.otp;
 
     try {
         const existingUser = await collection.findOne({
             $or: [
                 { name: data.name },
                 { email: data.email },
-                { mno: data.mno }
+                { mno: data.mno },
+                { $and: [ { email: data.email }, { otp: otpMap[data.email] } ] }
             ]
         });
 
         if (existingUser) {
             console.log("User already exists:", existingUser);
-            return res.status(409).redirect('/urexist');
+            res.status(409).send('urexist');
         } else {
             const saltRounds = 10;
             const hashedPassword = await bcrypt.hash(data.password, saltRounds);
             data.password = hashedPassword;
             await collection.insertMany(data);
             console.log("User registered successfully:", data);
-            return res.status(200).redirect('successful'); 
+            res.status(201).send('successful'); 
         }
     } catch (error) {
         console.error("Error registering user:", error);
@@ -365,7 +383,6 @@ app.post("/addingtopurch/:id/:Date", async (req, res) => {
 
     try {
         await purchproducts.insertMany(data);
-
         console.log("Product purchaes:", data);
         res.status(200).redirect('/purchased');
     } catch (error) {
